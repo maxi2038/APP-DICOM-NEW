@@ -70,7 +70,7 @@ app.post('/api/login', async (req, res) => {
     }
 
     try {
-        // CAMBIO: Postgres usa $1, $2 para parámetros
+        // 1. Buscar al usuario
         const result = await pool.query(
             `SELECT u.id, u.username, u.name, u.password, r.nombreRol, u.id_Rol 
              FROM users u 
@@ -82,15 +82,16 @@ app.post('/api/login', async (req, res) => {
         const user = result.rows[0];
 
         if (!user) {
-            return res.status(401).json({ success: false, message: 'Usuario o contraseña incorrectos.' });
+            return res.status(401).json({ success: false, message: 'Usuario no encontrado.' });
         }
 
-        const isMatch = await bcrypt.compare(password, user.password);
-
-        if (!isMatch) {
-            return res.status(401).json({ success: false, message: 'Usuario o contraseña incorrectos.' });
+        // 2. COMPARACIÓN DIRECTA (Sin encriptación)
+        // Si la contraseña en la BD es "123456" y el usuario escribe "123456", entra.
+        if (password !== user.password) {
+            return res.status(401).json({ success: false, message: 'Contraseña incorrecta.' });
         }
         
+        // 3. Éxito
         const userResponse = {
             id: user.id,
             username: user.username,
