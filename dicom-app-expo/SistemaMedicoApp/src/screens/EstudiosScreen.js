@@ -65,7 +65,6 @@ const handleDownload = async (estudio) => {
       <Text style={styles.detail}>Fecha: {new Date(item.fechaEstudio).toLocaleDateString()}</Text>
 
       <View style={styles.buttonContainer}>
-        <Button title="Descargar" onPress={() => handleDownload(item)} color="#c62828" />
       </View>
     </View>
   );

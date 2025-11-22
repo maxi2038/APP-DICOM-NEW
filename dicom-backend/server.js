@@ -6,22 +6,30 @@ const path = require('path');
 const fs = require('fs');
 const pool = require('./db');
 const bcrypt = require('bcryptjs'); 
-
+const OpenAI = require('openai');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Configuración de OpenAI
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY, 
+});
 
-const UPLOAD_DIR = path.resolve(process.env.UPLOAD_DIR || './uploads');
-fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOAD_DIR)){
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
+app.use('/uploads', express.static(UPLOAD_DIR));
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const patientId = req.params.id;
     const dir = path.join(UPLOAD_DIR, String(patientId));
-    fs.mkdirSync(dir, { recursive: true });
+    if (!fs.existsSync(dir)){
+        fs.mkdirSync(dir, { recursive: true });
+    }
     cb(null, dir);
   },
   filename: (req, file, cb) => {
@@ -31,25 +39,27 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// --- Endpoints ---
+// --- Endpoints (Adaptados a PostgreSQL) ---
 
 // Lista de pacientes
 app.get('/api/patients', async (req, res) => {
   try {
-    const [rows] = await pool.query(
+    // Postgres usa comillas dobles para identificadores si hay mayúsculas, pero es mejor usar minúsculas en nombres de columnas
+    // Asumiremos que las tablas se crearán con nombres estándar.
+    const result = await pool.query(
       `SELECT idPaciente AS id, nombre, sexo, rutaImagen, nombreImagen, fechaIngreso
        FROM pacientes ORDER BY nombre`
     );
-    res.json(rows);
+    // En 'pg', los datos están en result.rows
+    res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: 'DB error' });
+    console.error(err);
+    res.status(500).json({ error: 'DB error: ' + err.message });
   }
 });
-// ===================================
-// Endpoints de Autenticación
-// ===================================
+
+// Login
 app.post('/api/login', async (req, res) => {
-    // 1. Obtener credenciales del cuerpo de la solicitud (JSON)
     const { username, password } = req.body;
 
     if (!username || !password) {
@@ -57,63 +67,81 @@ app.post('/api/login', async (req, res) => {
     }
 
     try {
-        // 2. Buscar el usuario y su rol en la base de datos
-        const [rows] = await pool.query(
-            // La columna 'password' debe estar incluida para la verificación
+        // CAMBIO: Postgres usa $1, $2 para parámetros
+        const result = await pool.query(
             `SELECT u.id, u.username, u.name, u.password, r.nombreRol, u.id_Rol 
              FROM users u 
              JOIN roles r ON u.id_Rol = r.idRol 
-             WHERE u.username = ?`,
+             WHERE u.username = $1`,
             [username]
         );
 
-        const user = rows[0];
+        const user = result.rows[0];
 
         if (!user) {
-            // Usuario no encontrado
             return res.status(401).json({ success: false, message: 'Usuario o contraseña incorrectos.' });
         }
 
-        // 3. Verificar la contraseña hasheada (bcrypt)
         const isMatch = await bcrypt.compare(password, user.password);
 
         if (!isMatch) {
-            // Contraseña incorrecta
             return res.status(401).json({ success: false, message: 'Usuario o contraseña incorrectos.' });
         }
         
-        // 4. Autenticación exitosa
-        // Creamos un objeto de respuesta sin la contraseña hasheada
         const userResponse = {
             id: user.id,
             username: user.username,
             name: user.name,
-            role: user.nombreRol, // Ej: "Doctor" o "Administrador"
+            role: user.nombreRol,
             id_Rol: user.id_Rol,
         };
 
         res.json({ success: true, user: userResponse });
 
     } catch (error) {
-        console.error('Error en el endpoint /api/login:', error);
-        res.status(500).json({ success: false, message: 'Error interno del servidor.' });
+        console.error('Error en login:', error);
+        res.status(500).json({ success: false, message: 'Error interno.' });
     }
 });
+
+// Chatbot
+app.post('/api/chat', async (req, res) => {
+    const { message } = req.body;
+    if (!message) return res.status(400).json({ error: 'Mensaje requerido' });
+
+    try {
+        const completion = await openai.chat.completions.create({
+            model: "gpt-3.5-turbo",
+            messages: [
+                { role: "system", content: "Eres un asistente médico útil." },
+                { role: "user", content: message }
+            ],
+        });
+        res.json({ reply: completion.choices[0].message.content });
+    } catch (error) {
+        console.error('Error OpenAI:', error);
+        res.status(500).json({ error: 'Error del asistente.' });
+    }
+});
+
 // Estudios de un paciente
 app.get('/api/patients/:id/studies', async (req, res) => {
   try {
     const pid = req.params.id;
-    const [rows] = await pool.query(
+    // CAMBIO: Sintaxis de fecha para Postgres (EXTRACT EPOCH para calcular diferencia en segundos/minutos)
+    const result = await pool.query(
       `SELECT idEstudio AS id, nombreEstudio AS nombre, rutaEstudio AS ruta, fechaEstudio,
-              TIMESTAMPDIFF(MINUTE, fechaEstudio, NOW()) AS minutosDesde
-       FROM estudios WHERE IdPaciente = ? ORDER BY fechaEstudio DESC`, [pid]
+              EXTRACT(EPOCH FROM (NOW() - fechaEstudio))/60 AS minutosDesde
+       FROM estudios WHERE IdPaciente = $1 ORDER BY fechaEstudio DESC`, [pid]
     );
-    const studies = rows.map(r => ({
+    
+    const studies = result.rows.map(r => ({
       ...r,
-      canDelete: (r.minutosDesde <= 5)
+      canDelete: (r.minutosdesde <= 5) // Postgres suele devolver nombres de columna en minúscula
     }));
     res.json(studies);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'DB error' });
   }
 });
@@ -123,40 +151,48 @@ app.post('/api/patients/:id/studies', upload.single('file'), async (req, res) =>
   try {
     const pid = req.params.id;
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    
     const filename = req.file.filename;
-    const relativePath = path.relative(process.cwd(), req.file.path);
+    const relativePath = `${pid}/${filename}`;
 
-    const [result] = await pool.query(
+    // CAMBIO: Postgres requiere "RETURNING id" para obtener el ID insertado
+    const result = await pool.query(
       `INSERT INTO estudios (rutaEstudio, nombreEstudio, IdPaciente, fechaEstudio)
-       VALUES (?, ?, ?, NOW())`,
-      [relativePath.replace(/\\/g, '/'), filename, pid]
+       VALUES ($1, $2, $3, NOW()) RETURNING idEstudio`,
+      [relativePath, filename, pid]
     );
 
-    res.json({ id: result.insertId, nombre: filename, ruta: relativePath, canDelete: true });
+    const newId = result.rows[0].idestudio; // Nota: idestudio en minúscula por defecto en pg driver
+
+    res.json({ id: newId, nombre: filename, ruta: relativePath, canDelete: true });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Upload error' });
   }
 });
 
-// Eliminar estudio (sólo si <= 5 min)
+// Eliminar estudio
 app.delete('/api/studies/:id', async (req, res) => {
   try {
     const sid = req.params.id;
-    const [rows] = await pool.query(
+    const result = await pool.query(
       `SELECT idEstudio, rutaEstudio, fechaEstudio,
-              TIMESTAMPDIFF(MINUTE, fechaEstudio, NOW()) AS minutosDesde
-       FROM estudios WHERE idEstudio = ?`, [sid]
+              EXTRACT(EPOCH FROM (NOW() - fechaEstudio))/60 AS minutosDesde
+       FROM estudios WHERE idEstudio = $1`, [sid]
     );
-    if (!rows.length) return res.status(404).json({ error: 'No encontrado' });
-    const row = rows[0];
-    if (row.minutosDesde > 5) return res.status(403).json({ error: 'Tiempo expiró' });
+    
+    if (!result.rows.length) return res.status(404).json({ error: 'No encontrado' });
+    const row = result.rows[0];
+    
+    if (row.minutosdesde > 5) return res.status(403).json({ error: 'Tiempo expiró' });
 
-    const filePath = path.resolve(process.cwd(), row.rutaEstudio);
-    try { fs.unlinkSync(filePath); } catch (e) {}
+    const filePath = path.join(UPLOAD_DIR, row.rutaestudio); // Ojo con mayúsculas/minúsculas
+    try { fs.unlinkSync(filePath); } catch (e) { console.error(e); }
 
-    await pool.query('DELETE FROM estudios WHERE idEstudio = ?', [sid]);
+    await pool.query('DELETE FROM estudios WHERE idEstudio = $1', [sid]);
     res.json({ success: true });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Delete error' });
   }
 });

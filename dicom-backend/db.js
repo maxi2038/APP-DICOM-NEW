@@ -1,13 +1,17 @@
-const mysql = require('mysql2/promise');
+const { Pool } = require('pg');
 require('dotenv').config();
 
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
+// Render proporciona una 'Internal Database URL' o 'External Database URL'
+// Usualmente se guarda en una variable llamada DATABASE_URL o se construye con los datos
+const pool = new Pool({
+  host: process.env.DB_HOST,
   user: process.env.DB_USER,
   password: process.env.DB_PASS,
   database: process.env.DB_NAME,
-  waitForConnections: true,
-  connectionLimit: 10
+  port: process.env.DB_PORT || 5432,
+  ssl: {
+    rejectUnauthorized: false // Necesario para Render
+  }
 });
 
 module.exports = pool;

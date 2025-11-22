@@ -1,8 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, FlatList, Keyboard, ActivityIndicator, Alert } from 'react-native';
-
-//Ruta Local
-const CHATBOT_API_URL = "http://192.168.100.97/Dicomsystem/admin/bot_api.php"; 
+// 1. IMPORTANTE: Importamos la instancia de API configurada que apunta a Render
+import { api } from '../api/config'; 
 
 const ChatbotScreen = () => {
   const [messages, setMessages] = useState([]);
@@ -13,29 +12,25 @@ const ChatbotScreen = () => {
   const handleSend = async () => {
     if (!input.trim() || loading) return;
 
+    // Agregar mensaje del usuario a la lista
     const userMessage = { id: Date.now(), text: input, isUser: true };
     setMessages(prev => [...prev, userMessage]);
+    
     const originalInput = input;
     setInput('');
     setLoading(true);
     Keyboard.dismiss();
 
     try {
-      // Petición POST al script PHP
-      const response = await fetch(CHATBOT_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: originalInput })
+      // 2. Petición POST al servidor de Render (/api/chat)
+      // Usamos 'api.post' que ya tiene la URL base configurada en config.js
+      const response = await api.post('/chat', { 
+          message: originalInput 
       });
 
-      if (!response.ok) {
-          // Captura errores HTTP
-          throw new Error(`Error de servidor: ${response.status} ${response.statusText}.`);
-      }
-
-      const data = await response.json();
+      // Axios devuelve la respuesta en .data
+      const data = response.data;
       
-      // Maneja la respuesta JSON del script bot_api.php
       const botReply = data.reply || 'No pude obtener una respuesta válida del asistente.';
 
       const botMessage = { 
@@ -47,7 +42,8 @@ const ChatbotScreen = () => {
       
     } catch (error) {
       console.error('Error al llamar al chatbot:', error);
-      Alert.alert('Error de Chatbot', `Fallo la comunicación: ${error.message}. Verifica tu URL y servidor Apache.`);
+      // Mostrar un error más amigable
+      Alert.alert('Error', 'No se pudo conectar con el asistente médico. Intente más tarde.');
     } finally {
       setLoading(false);
     }
@@ -69,7 +65,7 @@ const ChatbotScreen = () => {
         renderItem={renderItem}
         keyExtractor={item => item.id.toString()}
         contentContainerStyle={styles.listContent}
-        onContentSizeChange={() => flatListRef.current.scrollToEnd({ animated: true })}
+        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
       />
 
       <View style={styles.inputContainer}>
