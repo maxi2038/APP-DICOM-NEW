@@ -44,19 +44,22 @@ const upload = multer({ storage });
 // Lista de pacientes
 app.get('/api/patients', async (req, res) => {
   try {
-    // Postgres usa comillas dobles para identificadores si hay mayúsculas, pero es mejor usar minúsculas en nombres de columnas
-    // Asumiremos que las tablas se crearán con nombres estándar.
+    // 1. Guardamos el resultado completo en una variable (sin corchetes [])
     const result = await pool.query(
       `SELECT idPaciente AS id, nombre, sexo, rutaImagen, nombreImagen, fechaIngreso
        FROM pacientes ORDER BY nombre`
     );
-    // En 'pg', los datos están en result.rows
-    res.json(result.rows);
+    
+    // 2. Enviamos result.rows (donde Postgres guarda los datos)
+    res.json(result.rows); 
+    
   } catch (err) {
-    console.error(err);
+    console.error(err); // Esto imprimirá el error real en los logs de Render
     res.status(500).json({ error: 'DB error: ' + err.message });
   }
 });
+
+
 
 // Login
 app.post('/api/login', async (req, res) => {
