@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect } from 'react';
-import { View, Text, FlatList, StyleSheet, ActivityIndicator, TouchableOpacity, Button, Alert } from 'react-native';
+import { View, Text, FlatList, StyleSheet, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
 import { api } from '../api/config';
 
-// --- MODIFICADO: El componente ahora recibe 'onLogout' en sus props ---
 const PacientesScreen = ({ navigation, onLogout }) => {
   const [pacientes, setPacientes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -26,32 +25,40 @@ const PacientesScreen = ({ navigation, onLogout }) => {
 
   useLayoutEffect(() => {
     navigation.setOptions({
+      // 1. Aseguramos que el fondo de la barra sea blanco y el título negro
+      headerStyle: { backgroundColor: '#ffffff' },
+      headerTintColor: '#000000',
+      headerTitleStyle: { fontWeight: 'bold' },
+
+      // 2. Botón Derecho: CHATBOT (Fondo Verde Teal, Texto Blanco)
       headerRight: () => (
-        <Button 
+        <TouchableOpacity 
           onPress={() => navigation.navigate('Chatbot')}
-          title="Chatbot" 
-          color="#fff" 
-        />
+          style={styles.headerButtonRight}
+        >
+          <Text style={styles.headerButtonText}>Chatbot</Text>
+        </TouchableOpacity>
       ),
+
+      // 3. Botón Izquierdo: CERRAR SESIÓN (Fondo Rojo, Texto Blanco)
       headerLeft: () => (
-        <Button
+        <TouchableOpacity
           onPress={() => {
             Alert.alert(
               "Cerrar Sesión",
               "¿Estás seguro de que quieres salir?",
               [
                 { text: "Cancelar", style: "cancel" },
-                // --- MODIFICADO: Al presionar 'Sí', se llama a la función onLogout ---
                 { text: "Sí", onPress: onLogout }
               ]
             );
           }}
-          title="Cerrar Sesión"
-          color="#fff"
-        />
+          style={styles.headerButtonLeft}
+        >
+          <Text style={styles.headerButtonText}>Salir</Text>
+        </TouchableOpacity>
       ),
     });
-    // --- MODIFICADO: Añadimos 'onLogout' a las dependencias del efecto ---
   }, [navigation, onLogout]);
 
 
@@ -106,6 +113,27 @@ const styles = StyleSheet.create({
   },
   name: { fontSize: 18, fontWeight: 'bold', color: '#333' },
   detail: { fontSize: 14, color: '#555' },
+  
+  // ESTILOS NUEVOS PARA LOS BOTONES DE ARRIBA
+  headerButtonRight: {
+    backgroundColor: '#00796b', // Verde
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginRight: 5,
+  },
+  headerButtonLeft: {
+    backgroundColor: '#d32f2f', // Rojo
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginLeft: 5,
+  },
+  headerButtonText: {
+    color: '#ffffff', // Texto blanco
+    fontWeight: 'bold',
+    fontSize: 14,
+  }
 });
 
 export default PacientesScreen;

@@ -1,8 +1,7 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
-
+.env
 # dependencies
-node_modules/
-
+/node_modules
 # Expo
 .expo/
 dist/
@@ -29,9 +28,6 @@ yarn-error.*
 # macOS
 .DS_Store
 *.pem
-
-# local env files
-.env*.local
 
 # typescript
 *.tsbuildinfo

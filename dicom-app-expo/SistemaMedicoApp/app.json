@@ -1,14 +1,24 @@
 {
   "expo": {
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
+    ],
     "name": "SistemaMedicoApp",
     "slug": "SistemaMedicoApp",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/icon.jpeg",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/icon.jpeg",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -17,13 +27,19 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/icon.jpeg",
         "backgroundColor": "#ffffff"
       },
+      "package": "com.maxi.sistemamedico",
       "edgeToEdgeEnabled": true
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/icon.jpeg"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "9764a7dd-eeb8-43fb-a743-6bbe06c61904"
+      }
     }
   }
 }
